@@ -1,15 +1,20 @@
-RSpec.shared_context 'csv file' do |name, type|
-  include Rack::Test::Methods
-
-  let(:appropriate_body) { FactoryBot.create(:appropriate_body) }
-
-  let(:csv_file) do
-    Rack::Test::UploadedFile.new(Rails.root.join("spec/fixtures/#{type.pluralize}/#{name}.csv"), 'text/csv')
+RSpec.shared_context '2 valid claims' do |_type|
+  # 2 valid records
+  let(:data) do
+    [
+      { trn: '1234567', date_of_birth: '1981-06-30', induction_programme: 'fip', started_on: '2025-01-30', error: '' },
+      { trn: '7654321', date_of_birth: '1981-06-30', induction_programme: 'CIP', started_on: '2025-01-30', error: '' }
+    ]
   end
+end
 
-  let(:pending_induction_submission_batch) do
-    FactoryBot.create(:pending_induction_submission_batch, type.to_sym,
-                      csv_file:,
-                      appropriate_body:)
+RSpec.shared_context '3 valid actions' do |_type|
+  # 3 valid records
+  let(:data) do
+    [
+      { trn: '1234567', date_of_birth: '1981-06-30', number_of_terms: '0.5', finished_on: '2025-01-30', outcome: 'pass',    error: '' },
+      { trn: '7654321', date_of_birth: '1981-06-30', number_of_terms: '7.2', finished_on: '2025-01-30', outcome: 'fail',    error: '' },
+      { trn: '0000007', date_of_birth: '1981-06-30', number_of_terms: '1',   finished_on: '2025-01-30', outcome: 'release', error: '' }
+    ]
   end
 end

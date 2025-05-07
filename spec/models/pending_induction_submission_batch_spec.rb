@@ -1,7 +1,7 @@
 RSpec.describe PendingInductionSubmissionBatch do
   subject(:batch) { FactoryBot.build(:pending_induction_submission_batch, :claim) }
 
-  describe "associations" do
+  describe 'associations' do
     it { is_expected.to belong_to(:appropriate_body) }
     it { is_expected.to have_many(:pending_induction_submissions) }
   end
@@ -20,24 +20,10 @@ RSpec.describe PendingInductionSubmissionBatch do
     end
   end
 
-  describe "callbacks" do
-    describe '#data_from_csv' do
-      it 'persists data from disk to database and deletes attachment' do
-        expect(batch.csv_file).to be_attached
-        expect(batch.data).to be_nil
-
-        batch.save!
-
-        expect(batch.csv_file).not_to be_attached
-        expect(batch.data).not_to be_nil
-      end
-    end
-  end
-
-  describe "class methods" do
+  describe 'class methods' do
     let(:appropriate_body) { FactoryBot.create(:appropriate_body) }
 
-    describe ".new_claim_for" do
+    describe '.new_claim_for' do
       subject(:claim) { described_class.new_claim_for(appropriate_body:) }
 
       it 'creates a batch claim' do
@@ -48,7 +34,7 @@ RSpec.describe PendingInductionSubmissionBatch do
       end
     end
 
-    describe ".new_action_for" do
+    describe '.new_action_for' do
       subject(:action) { described_class.new_action_for(appropriate_body:) }
 
       it 'creates a batch action' do
@@ -58,31 +44,9 @@ RSpec.describe PendingInductionSubmissionBatch do
         expect(action.appropriate_body).to eq(appropriate_body)
       end
     end
-
-    describe ".build_row_class" do
-      subject(:row_class) { described_class.build_row_class(%i[foo bar baz]) }
-
-      it 'errors if the wrong attributes are used' do
-        expect { row_class.new }.to raise_error('missing keywords: :foo, :bar, :baz')
-      end
-
-      it 'creates an enumerable Data class to encapsulate CSV row cells' do
-        row = row_class.new(foo: 'foo', bar: 'bar', baz: 'baz')
-        expect(row).to be_a(row_class)
-        expect(row).to be_a(Enumerable)
-        expect(row.to_a).to eq(%w[foo bar baz])
-        expect(row).to respond_to(:foo)
-        expect(row).not_to respond_to(:buz)
-      end
-
-      it 'string encodes values' do
-        row = row_class.new(foo: "André", bar: "Zoë", baz: "Ştefan")
-        expect(row.to_a).to eq(%w[André Zoë Ştefan])
-      end
-    end
   end
 
-  describe "validations" do
+  describe 'validations' do
     it { is_expected.to be_valid }
 
     it { is_expected.to validate_presence_of(:batch_type) }
@@ -95,68 +59,5 @@ RSpec.describe PendingInductionSubmissionBatch do
     it { is_expected.to allow_value('processed').for(:batch_status) }
     it { is_expected.to allow_value('completed').for(:batch_status) }
     it { is_expected.to allow_value('failed').for(:batch_status) }
-
-    context 'when the attached file is invalid' do
-      subject(:batch) { FactoryBot.build(:pending_induction_submission_batch, :claim, csv_file:) }
-
-      describe "#csv_mime_type" do
-        let(:csv_file) { Rack::Test::UploadedFile.new(Rails.root.join('spec/fixtures/foo.txt'), 'text/plain') }
-
-        specify do
-          expect(batch).not_to be_valid
-          expect(batch.errors[:csv_file]).to include("File type must be a CSV")
-        end
-      end
-
-      describe "#wrong_headers" do # softened rules so order doesn't matter - still TBC
-        let(:csv_file) { Rack::Test::UploadedFile.new(Rails.root.join('spec/fixtures/claims/invalid_missing_columns.csv'), 'text/csv') }
-
-        specify do
-          batch.save!
-          expect(batch).not_to be_valid(:uploaded)
-          expect(batch.errors[:csv_file]).to include("CSV file contains unsupported columns")
-        end
-      end
-
-      describe "#unique_trns" do
-        let(:csv_file) { Rack::Test::UploadedFile.new(Rails.root.join('spec/fixtures/claims/invalid_duplicate_trns.csv'), 'text/csv') }
-
-        specify do
-          batch.save!
-          expect(batch).not_to be_valid(:uploaded)
-          expect(batch.errors[:csv_file]).to include("CSV file contains duplicate TRNs")
-        end
-      end
-
-      describe "#missing_trns" do
-        let(:csv_file) { Rack::Test::UploadedFile.new(Rails.root.join('spec/fixtures/claims/invalid_missing_trn.csv'), 'text/csv') }
-
-        specify do
-          batch.save!
-          expect(batch).not_to be_valid(:uploaded)
-          expect(batch.errors[:csv_file]).to include("CSV file contains missing TRNs")
-        end
-      end
-
-      describe "#missing_dobs" do
-        let(:csv_file) { Rack::Test::UploadedFile.new(Rails.root.join('spec/fixtures/claims/invalid_missing_dob.csv'), 'text/csv') }
-
-        specify do
-          batch.save!
-          expect(batch).not_to be_valid(:uploaded)
-          expect(batch.errors[:csv_file]).to include("CSV file contains missing dates of birth")
-        end
-      end
-
-      describe "#iso8601_date" do
-        let(:csv_file) { Rack::Test::UploadedFile.new(Rails.root.join('spec/fixtures/claims/invalid_date_format.csv'), 'text/csv') }
-
-        specify do
-          batch.save!
-          expect(batch).not_to be_valid(:uploaded)
-          expect(batch.errors[:csv_file]).to include("CSV file contains unsupported date format")
-        end
-      end
-    end
   end
 end

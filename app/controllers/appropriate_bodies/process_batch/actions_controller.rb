@@ -13,22 +13,23 @@ module AppropriateBodies
       def create
         @pending_induction_submission_batch = new_batch_action
 
-        if @pending_induction_submission_batch.save! &&
-            @pending_induction_submission_batch.save(context: :uploaded)
+        if csv_data.valid?
+          @pending_induction_submission_batch.data = csv_data.to_a
+          @pending_induction_submission_batch.save!
 
           process_batch_action
 
           redirect_to ab_batch_action_path(@pending_induction_submission_batch), alert: 'File processing'
-
         else
-          render :new
+          @pending_induction_submission_batch = csv_data
+          render :new, status: :unprocessable_entity
         end
-      rescue ActionController::ParameterMissing, ActiveStorage::FileNotFoundError
-        @pending_induction_submission_batch.errors.add(:csv_file, "Attach a CSV file")
-        render :new
+      rescue ActionController::ParameterMissing
+        @pending_induction_submission_batch.errors.add(:csv_file, "Select a file")
+        render :new, status: :unprocessable_entity
       rescue StandardError => e
         @pending_induction_submission_batch.errors.add(:base, e.message)
-        render :new
+        render :new, status: :unprocessable_entity
       end
 
       def update
@@ -42,13 +43,11 @@ module AppropriateBodies
     private
 
       def new_batch_action
-        PendingInductionSubmissionBatch.new_action_for(appropriate_body: @appropriate_body, **import_params)
+        PendingInductionSubmissionBatch.new_action_for(appropriate_body: @appropriate_body)
       end
 
-      # Delay ensures the parsed CSV is saved before the job runs
-      # Larger CSV files may take longer to process
       def process_batch_action
-        ProcessBatchActionJob.set(wait: 2.seconds).perform_later(
+        ProcessBatchActionJob.perform_later(
           @pending_induction_submission_batch,
           current_user.email,
           current_user.name

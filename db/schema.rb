@@ -32,34 +32,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_04_28_121350) do
   create_enum "programme_type", ["provider_led", "school_led"]
   create_enum "working_pattern", ["part_time", "full_time"]
 
-  create_table "active_storage_attachments", force: :cascade do |t|
-    t.string "name", null: false
-    t.string "record_type", null: false
-    t.bigint "record_id", null: false
-    t.bigint "blob_id", null: false
-    t.datetime "created_at", null: false
-    t.index ["blob_id"], name: "index_active_storage_attachments_on_blob_id"
-    t.index ["record_type", "record_id", "name", "blob_id"], name: "index_active_storage_attachments_uniqueness", unique: true
-  end
-
-  create_table "active_storage_blobs", force: :cascade do |t|
-    t.string "key", null: false
-    t.string "filename", null: false
-    t.string "content_type"
-    t.text "metadata"
-    t.string "service_name", null: false
-    t.bigint "byte_size", null: false
-    t.string "checksum"
-    t.datetime "created_at", null: false
-    t.index ["key"], name: "index_active_storage_blobs_on_key", unique: true
-  end
-
-  create_table "active_storage_variant_records", force: :cascade do |t|
-    t.bigint "blob_id", null: false
-    t.string "variation_digest", null: false
-    t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
-  end
-
   create_table "appropriate_bodies", force: :cascade do |t|
     t.string "name", null: false
     t.datetime "created_at", null: false
@@ -391,7 +363,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_04_28_121350) do
     t.date "trs_qts_awarded_on"
     t.datetime "delete_at", precision: nil
     t.bigint "pending_induction_submission_batch_id"
-    t.string "error_message"
+    t.string "error_messages", default: [], array: true
     t.index ["appropriate_body_id"], name: "index_pending_induction_submissions_on_appropriate_body_id"
     t.index ["pending_induction_submission_batch_id"], name: "idx_on_pending_induction_submission_batch_id_bb4509358d"
   end
@@ -615,8 +587,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_04_28_121350) do
     t.index ["email"], name: "index_users_on_email", unique: true
   end
 
-  add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
-  add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "dfe_roles", "users"
   add_foreign_key "ect_at_school_periods", "appropriate_bodies", column: "school_reported_appropriate_body_id"
   add_foreign_key "ect_at_school_periods", "lead_providers"
@@ -646,7 +616,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_04_28_121350) do
   add_foreign_key "mentorship_periods", "mentor_at_school_periods"
   add_foreign_key "pending_induction_submission_batches", "appropriate_bodies"
   add_foreign_key "pending_induction_submissions", "appropriate_bodies"
-  add_foreign_key "pending_induction_submissions", "pending_induction_submission_batches"  
+  add_foreign_key "pending_induction_submissions", "pending_induction_submission_batches"
   add_foreign_key "school_partnerships", "delivery_partners"
   add_foreign_key "school_partnerships", "lead_providers"
   add_foreign_key "school_partnerships", "registration_periods", primary_key: "year"

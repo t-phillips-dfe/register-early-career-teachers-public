@@ -37,7 +37,7 @@ module AppropriateBodies
       def claim!
         PendingInductionSubmissionBatch.transaction do
           pending_induction_submission.assign_attributes(
-            started_on: row.start_date,
+            started_on: row.started_on,
             induction_programme: row.induction_programme.downcase
           )
 
@@ -69,10 +69,6 @@ module AppropriateBodies
       # @return [AppropriateBodies::ClaimAnECT::RegisterECT]
       def register_ect
         ClaimAnECT::RegisterECT.new(appropriate_body:, pending_induction_submission:, author:)
-      end
-
-      def capture_error(message)
-        pending_induction_submission.update(error_message: message)
       end
     end
   end

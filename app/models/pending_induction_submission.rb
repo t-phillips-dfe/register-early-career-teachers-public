@@ -16,8 +16,8 @@ class PendingInductionSubmission < ApplicationRecord
   # Scopes
   scope :ready_for_deletion, -> { where(delete_at: ..Time.current) }
   scope :release, -> { where(outcome: nil).where.not(finished_on: nil) }
-  scope :with_errors, -> { where.not(error_message: [nil, '']) }
-  scope :without_errors, -> { where(error_message: nil) }
+  scope :with_errors, -> { where.not(error_messages: []) }
+  scope :without_errors, -> { where(error_messages: []) }
 
   # Associations
   belongs_to :appropriate_body
@@ -90,6 +90,10 @@ class PendingInductionSubmission < ApplicationRecord
            if: -> { started_on.present? },
            on: :register_ect
 
+  validate :no_end_date_before_start_date,
+           if: -> { finished_on.present? },
+           on: %i[release_ect record_outcome]
+
   # Instance methods
   def exempt?
     trs_induction_status.eql?('Exempt')
@@ -103,10 +107,7 @@ class PendingInductionSubmission < ApplicationRecord
     outcome.eql?('fail')
   end
 
-  def error_message
-    super || "✅"
-  end
-
+  # @return [Boolean] capture multiple error messages and reset before saving
   def playback_errors
     assign_attributes(
       induction_programme: nil,
@@ -114,7 +115,7 @@ class PendingInductionSubmission < ApplicationRecord
       started_on: nil,
       finished_on: nil,
       number_of_terms: nil,
-      error_message: errors.full_messages.to_sentence
+      error_messages: errors.messages.values.flatten
     )
     errors.clear
     save!
@@ -142,6 +143,19 @@ private
 
     if started_on <= latest_date_of_induction
       errors.add(:started_on, "Enter a start date after the last induction period finished (#{latest_date_of_induction.to_fs(:govuk)})")
+    end
+  end
+
+  # Bulk CSV outcomes may attempt this. Error message only seen in failed CSV downloads
+  def no_end_date_before_start_date
+    return if teacher.blank?
+
+    latest_date_of_induction = teacher.induction_periods.maximum(:started_on)
+
+    return unless latest_date_of_induction
+
+    if finished_on <= latest_date_of_induction
+      errors.add(:finished_on, "Induction end date must be after the induction start date (#{latest_date_of_induction.to_fs(:govuk)})")
     end
   end
 end

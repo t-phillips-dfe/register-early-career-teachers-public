@@ -18,31 +18,15 @@ module AppropriateBodies
           @row = row
           @pending_induction_submission = sparse_pending_induction_submission
 
-          if (trs_error = fetch_trs_details!)
-            pending_induction_submission.update(error_message: trs_error)
-            next
-          end
-
-          if teacher.blank?
-            pending_induction_submission.update(error_message: "Teacher #{name} has not yet been claimed")
-            next
-          end
-
-          if ongoing_induction_period.blank?
-            pending_induction_submission.update(error_message: "Teacher #{name} does not have an ongoing induction")
-            next
-          end
-
-          if claimed_by_another_ab?
-            pending_induction_submission.update(error_message: "Teacher #{name} was claimed by another appropriate body")
-            next
-          end
+          next if fails_pre_checks?
 
           validate_submission!
         rescue StandardError => e
-          pending_induction_submission.update(error_message: e.message)
+          capture_error(e.message)
           next
         end
+
+      # Batch error reporting
       rescue StandardError => e
         pending_induction_submission_batch.update(error_message: e.message)
       end
@@ -58,7 +42,7 @@ module AppropriateBodies
 
           elsif pending_induction_submission.save(context: :release_ect)
 
-            release_ect.release! if pending_induction_submission.outcome.nil? # needs work - why not add "release" to the enum?
+            release_ect.release! if pending_induction_submission.outcome.nil?
           else
             false
           end
@@ -68,11 +52,11 @@ module AppropriateBodies
       # @return [?]
       def validate_submission!
         pending_induction_submission.assign_attributes(
-          finished_on: row.end_date,
+          finished_on: row.finished_on,
           number_of_terms: row.number_of_terms
         )
 
-        case row.objective
+        case row.outcome
         when /fail/i
           pending_induction_submission.assign_attributes(outcome: 'fail')
           pending_induction_submission.playback_errors unless pending_induction_submission.save(context: :record_outcome)
@@ -82,9 +66,44 @@ module AppropriateBodies
         when /release/i
           pending_induction_submission.playback_errors unless pending_induction_submission.save(context: :release_ect)
         else
-          pending_induction_submission.errors.add(:outcome, "Objective must be pass, fail or release")
           pending_induction_submission.playback_errors
         end
+      end
+
+      # @return [Boolean]
+      def fails_pre_checks?
+        if incorrectly_formatted?
+          true
+        elsif (trs_error = fetch_trs_details!)
+          capture_error(trs_error)
+          true
+        elsif teacher.blank?
+          capture_error("#{name} has not yet been claimed")
+          true
+        elsif completed_induction_period?
+          capture_error("#{name} has already completed their induction")
+          true
+        elsif ongoing_induction_period?
+          capture_error("#{name} does not have an open induction")
+          true
+        elsif claimed_by_another_ab?
+          capture_error("#{name} is completing their induction with another appropriate body")
+          true
+        else
+          false
+        end
+      end
+
+      # @return [Boolean]
+      def incorrectly_formatted?
+        pending_induction_submission.errors.add(:base, 'Fill in the blanks on this row') if row.blank_cell?
+        pending_induction_submission.errors.add(:base, 'Dates must be in the format YYYY-MM-DD') if row.invalid_date?
+        pending_induction_submission.errors.add(:base, 'Date of birth must be a real date and the teacher must be between 18 and 100 years old') if row.invalid_age?
+        pending_induction_submission.errors.add(:base, 'Enter a valid TRN using 7 digits') if row.invalid_trn?
+        pending_induction_submission.errors.add(:base, 'Outcome must be either pass, fail or release') if row.invalid_outcome?
+        pending_induction_submission.errors.add(:base, 'Enter number of terms between 0 and 16 using up to one decimal place') if row.invalid_terms?
+
+        pending_induction_submission.errors.any? ? pending_induction_submission.playback_errors : false
       end
 
       # @return [nil, Teacher]
@@ -97,6 +116,11 @@ module AppropriateBodies
         ::PendingInductionSubmissions::Name.new(pending_induction_submission).full_name
       end
 
+      # @return [Teachers::InductionPeriod]
+      def induction_periods
+        ::Teachers::InductionPeriod.new(teacher)
+      end
+
       # @return [nil, String]
       def fetch_trs_details!
         pending_induction_submission.update(
@@ -105,23 +129,28 @@ module AppropriateBodies
 
         nil
       rescue TRS::Errors::TeacherNotFound
-        "Not found in TRS"
+        'TRN and date of birth do not match'
       rescue TRS::Errors::ProhibitedFromTeaching
-        "Prohibited from teaching"
+        'Prohibited from teaching'
       rescue TRS::Errors::QTSNotAwarded
-        "QTS not awarded"
+        'QTS not awarded'
       rescue StandardError
-        "TRS API could not be contacted"
+        'Something went wrong. You’ll need to try again later'
       end
 
-      # @return [nil, InductionPeriod]
-      def ongoing_induction_period
-        ::Teachers::InductionPeriod.new(teacher).ongoing_induction_period
+      # @return [Boolean]
+      def ongoing_induction_period?
+        induction_periods.ongoing_induction_period.blank?
+      end
+
+      # @return [Boolean]
+      def completed_induction_period?
+        induction_periods.last_induction_period&.outcome.present?
       end
 
       # @return [Boolean]
       def claimed_by_another_ab?
-        teacher && ongoing_induction_period && (appropriate_body != ongoing_induction_period.appropriate_body)
+        appropriate_body != induction_periods.ongoing_induction_period&.appropriate_body
       end
 
       # @return [AppropriateBodies::ReleaseECT]

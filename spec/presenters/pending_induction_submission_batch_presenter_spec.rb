@@ -35,18 +35,18 @@ RSpec.describe PendingInductionSubmissionBatchPresenter do
         [
           {
             trn: '1234567',
-            dob: '1990-01-01',
-            end_date: '2023-12-31',
+            date_of_birth: '1990-01-01',
+            finished_on: '2023-12-31',
             number_of_terms: '2.0',
-            objective: 'pass',
+            outcome: 'pass',
             error: ''
           },
           {
             trn: '7654321',
-            dob: '1980-01-01',
-            end_date: '2023-12-31',
+            date_of_birth: '1980-01-01',
+            finished_on: '2023-12-31',
             number_of_terms: '2.0',
-            objective: 'pass',
+            outcome: 'pass',
             error: ''
           }
         ]
@@ -56,8 +56,8 @@ RSpec.describe PendingInductionSubmissionBatchPresenter do
         expect(presenter.to_csv).to be_a(String)
       end
 
-      it 'returns a CSV string with the correct headers' do
-        expect(presenter.to_csv).to eq("trn,dob,end_date,number_of_terms,objective,error\n")
+      it 'returns a CSV string with the correct headers and no rows' do
+        expect(presenter.to_csv).to eq("TRN,Date of birth,Induction end date,Number of terms,Outcome,Error message\n")
       end
 
       context 'and there are failed_submissions' do
@@ -66,7 +66,12 @@ RSpec.describe PendingInductionSubmissionBatchPresenter do
                             appropriate_body:,
                             pending_induction_submission_batch: batch,
                             trn: '1234567',
-                            error_message: 'Some error message')
+                            error_messages: [
+                              'error one',
+                              'error two',
+                              'error three',
+                              'error four'
+                            ])
 
           FactoryBot.create(:pending_induction_submission,
                             appropriate_body:,
@@ -74,11 +79,11 @@ RSpec.describe PendingInductionSubmissionBatchPresenter do
                             trn: '7654321')
         end
 
-        it 'returns failed submissions with their errors' do
+        it 'returns only failed submissions with their errors as a sentence' do
           expect(presenter.to_csv).to eq(
             <<~CSV_DATA
-              trn,dob,end_date,number_of_terms,objective,error
-              1234567,1990-01-01,2023-12-31,2.0,pass,Some error message
+              TRN,Date of birth,Induction end date,Number of terms,Outcome,Error message
+              1234567,1990-01-01,2023-12-31,2.0,pass,"error one, error two, error three, and error four"
             CSV_DATA
           )
         end
